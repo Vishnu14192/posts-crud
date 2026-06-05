@@ -1,0 +1,120 @@
+from fastapi import APIRouter
+from fastapi import Depends
+from fastapi import status
+from fastapi import HTTPException
+
+from sqlalchemy.orm import Session
+
+from app.models import Post
+from app.schemas import PostCreate
+from app.schemas import PostResponse
+from app.schemas import PostUpdate
+from app.dependencies import get_db
+
+router = APIRouter(prefix="/posts", tags=["Posts"])
+
+
+@router.post(
+    "",
+    response_model=PostResponse,
+    status_code=status.HTTP_201_CREATED,
+)
+async def create_post(
+    post: PostCreate,
+    db: Session = Depends(get_db)
+):
+    new_post = Post(
+        title=post.title,
+        body=post.body
+    )
+
+    db.add(new_post)
+
+    db.commit()
+
+    db.refresh(new_post)
+
+    return new_post
+
+
+@router.get(
+    "",
+    response_model=list[PostResponse]
+)
+async def get_posts(
+    db: Session = Depends(get_db)
+):
+    posts = db.query(Post).all()
+
+    return posts
+
+@router.get(
+    "/{post_id}",
+    response_model=PostResponse
+)
+async def get_post(
+    post_id: int,
+    db: Session = Depends(get_db)
+):
+    post = db.query(Post).filter(
+        Post.id == post_id
+    ).first()
+
+    if not post:
+        raise HTTPException(
+            status_code=404,
+            detail="Post not found"
+        )
+
+    return post
+
+
+@router.put(
+    "/{post_id}",
+    response_model=PostResponse
+)
+async def update_post(
+    post_id: int,
+    post_data: PostUpdate,
+    db: Session = Depends(get_db)
+):
+    post = db.query(Post).filter(
+        Post.id == post_id
+    ).first()
+
+    if not post:
+        raise HTTPException(
+            status_code=404,
+            detail="Post not found"
+        )
+
+    post.title = post_data.title
+    post.body = post_data.body
+
+    db.commit()
+
+    db.refresh(post)
+
+    return post
+
+@router.delete(
+    "/{post_id}",
+    status_code=204
+)
+async def delete_post(
+    post_id: int,
+    db: Session = Depends(get_db)
+):
+    post = db.query(Post).filter(
+        Post.id == post_id
+    ).first()
+
+    if not post:
+        raise HTTPException(
+            status_code=404,
+            detail="Post not found"
+        )
+
+    db.delete(post)
+
+    db.commit()
