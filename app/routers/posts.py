@@ -11,6 +11,9 @@ from app.schemas import PostResponse
 from app.schemas import PostUpdate
 from app.dependencies import get_db
 
+from app.services.llm_service import generate_summary
+from app.schemas import SummaryResponse
+
 router = APIRouter(prefix="/posts", tags=["Posts"])
 
 
@@ -118,3 +121,32 @@ async def delete_post(
     db.delete(post)
 
     db.commit()
+
+@router.post(
+    "/{post_id}/summarize",
+    response_model=SummaryResponse
+)
+async def summarize_post(
+    post_id: int,
+    db: Session = Depends(get_db)
+):
+    post = db.query(Post).filter(
+        Post.id == post_id
+    ).first()
+
+    if not post:
+        raise HTTPException(
+            status_code=404,
+            detail="Post not found"
+        )
+
+    result = generate_summary(post.body)
+
+    post.summary = result["summary"]
+    post.key_points = result["key_points"]
+
+    db.commit()
+
+    db.refresh(post)
+
+    return result
