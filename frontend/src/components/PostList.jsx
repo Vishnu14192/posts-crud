@@ -1,6 +1,12 @@
 import API from "../api";
+import { useState } from "react";
 
 function PostList({ posts, refreshPosts }) {
+  const [editingId, setEditingId] = useState(null);
+
+  const [editTitle, setEditTitle] = useState("");
+
+  const [editBody, setEditBody] = useState("");
 
   const handleDelete = async (id) => {
     try {
@@ -11,26 +17,22 @@ function PostList({ posts, refreshPosts }) {
     }
   };
 
-  const handleEdit = async (post) => {
-    const newTitle = prompt(
-      "Enter new title:",
-      post.title
-    );
+  const handleEdit = (post) => {
+    setEditingId(post.id);
 
-    if (newTitle === null) return;
+    setEditTitle(post.title);
 
-    const newBody = prompt(
-      "Enter new body:",
-      post.body
-    );
+    setEditBody(post.body);
+  };
 
-    if (newBody === null) return;
-
+  const handleSave = async (id) => {
     try {
-      await API.put(`/posts/${post.id}`, {
-        title: newTitle,
-        body: newBody,
+      await API.put(`/posts/${id}`, {
+        title: editTitle,
+        body: editBody,
       });
+
+      setEditingId(null);
 
       refreshPosts();
 
@@ -39,37 +41,107 @@ function PostList({ posts, refreshPosts }) {
     }
   };
 
+  const handleCancel = () => {
+    setEditingId(null);
+  };
+
   return (
     <div>
       <h2>All Posts</h2>
 
-      {posts.map((post) => (
-        <div key={post.id}>
-          <h3>{post.title}</h3>
+      <table
+        border="1"
+        cellPadding="10"
+        style={{
+          borderCollapse: "collapse",
+          width: "100%",
+        }}
+      >
+        <thead>
+          <tr>
+            <th>ID</th>
+            <th>Title</th>
+            <th>Body</th>
+            <th>Actions</th>
+          </tr>
+        </thead>
 
-          <p>{post.body}</p>
+        <tbody>
+          {posts.map((post) => (
+            <tr key={post.id}>
+              <td>{post.id}</td>
 
-          <button
-            onClick={() =>
-              handleEdit(post)
-            }
-          >
-            Edit
-          </button>
+              <td>
+                {editingId === post.id ? (
+                  <input
+                    value={editTitle}
+                    onChange={(e) =>
+                      setEditTitle(e.target.value)
+                    }
+                  />
+                ) : (
+                  post.title
+                )}
+              </td>
 
-          {" "}
+              <td>
+                {editingId === post.id ? (
+                  <input
+                    value={editBody}
+                    onChange={(e) =>
+                      setEditBody(e.target.value)
+                    }
+                  />
+                ) : (
+                  post.body
+                )}
+              </td>
 
-          <button
-            onClick={() =>
-              handleDelete(post.id)
-            }
-          >
-            Delete
-          </button>
+              <td>
+                {editingId === post.id ? (
+                  <>
+                    <button
+                      onClick={() =>
+                        handleSave(post.id)
+                      }
+                    >
+                      Save
+                    </button>
 
-          <hr />
-        </div>
-      ))}
+                    {" "}
+
+                    <button
+                      onClick={handleCancel}
+                    >
+                      Cancel
+                    </button>
+                  </>
+                ) : (
+                  <>
+                    <button
+                      onClick={() =>
+                        handleEdit(post)
+                      }
+                    >
+                      Edit
+                    </button>
+
+                    {" "}
+
+                    <button
+                      onClick={() =>
+                        handleDelete(post.id)
+                      }
+                    >
+                      Delete
+                    </button>
+                  </>
+                )}
+              </td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
     </div>
   );
 }
