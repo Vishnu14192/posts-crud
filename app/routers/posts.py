@@ -122,6 +122,11 @@ async def delete_post(
 
     db.commit()
 
+from app.services.exceptions import (
+    LLMTimeoutError,
+    LLMServiceError,
+)
+
 @router.post(
     "/{post_id}/summarize",
     response_model=SummaryResponse
@@ -140,7 +145,32 @@ async def summarize_post(
             detail="Post not found"
         )
 
-    result = generate_summary(post.body)
+    try:
+
+        result = generate_summary(
+            post.body
+        )
+
+    except LLMTimeoutError:
+
+        raise HTTPException(
+            status_code=504,
+            detail="LLM request timed out"
+        )
+
+    except LLMServiceError:
+
+        raise HTTPException(
+            status_code=503,
+            detail="LLM service unavailable"
+        )
+
+    except Exception:
+
+        raise HTTPException(
+            status_code=500,
+            detail="Unable to generate summary"
+        )
 
     post.summary = result["summary"]
     post.key_points = result["key_points"]

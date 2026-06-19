@@ -2,6 +2,11 @@ import API from "../api";
 import { useState } from "react";
 
 function PostList({ posts, refreshPosts }) {
+  const [editingId, setEditingId] = useState(null);
+
+  const [editTitle, setEditTitle] = useState("");
+  const [editBody, setEditBody] = useState("");
+
   const [loadingId, setLoadingId] = useState(null);
   const [error, setError] = useState("");
 
@@ -14,27 +19,20 @@ function PostList({ posts, refreshPosts }) {
     }
   };
 
-  const handleEdit = async (post) => {
-    const newTitle = prompt(
-      "Enter new title:",
-      post.title
-    );
+  const handleEdit = (post) => {
+    setEditingId(post.id);
+    setEditTitle(post.title);
+    setEditBody(post.body);
+  };
 
-    if (newTitle === null) return;
-
-    const newBody = prompt(
-      "Enter new body:",
-      post.body
-    );
-
-    if (newBody === null) return;
-
+  const handleSave = async (id) => {
     try {
-      await API.put(`/posts/${post.id}`, {
-        title: newTitle,
-        body: newBody,
+      await API.put(`/posts/${id}`, {
+        title: editTitle,
+        body: editBody,
       });
 
+      setEditingId(null);
       refreshPosts();
 
     } catch (error) {
@@ -42,101 +40,186 @@ function PostList({ posts, refreshPosts }) {
     }
   };
 
+  const handleCancel = () => {
+    setEditingId(null);
+    setEditTitle("");
+    setEditBody("");
+  };
+
   const handleSummarize = async (id) => {
     try {
-
       setError("");
       setLoadingId(id);
 
-      await API.post(
-        `/posts/${id}/summarize`
-      );
+      await API.post(`/posts/${id}/summarize`);
 
       refreshPosts();
 
     } catch (error) {
 
-      setError(
-        "Unable to generate summary. Please try again."
-      );
+      const message =
+        error.response?.data?.detail ||
+        "Unable to generate summary";
+
+      setError(message);
 
       console.error(error);
 
     } finally {
-
       setLoadingId(null);
-
     }
   };
 
   return (
     <div>
       <h2>All Posts</h2>
+
       {error && (
-        <p>{error}</p>
+        <p
+          style={{
+            color: "red",
+            marginBottom: "10px",
+          }}
+        >
+          {error}
+        </p>
       )}
 
-      {posts.map((post) => (
-        <div key={post.id}>
-          <h3>{post.title}</h3>
+      <table
+        border="1"
+        cellPadding="10"
+        style={{
+          borderCollapse: "collapse",
+          width: "100%",
+        }}
+      >
+        <thead>
+          <tr>
+            <th>ID</th>
+            <th>Title</th>
+            <th>Body</th>
+            <th>Summary</th>
+            <th>Key Points</th>
+            <th>Actions</th>
+          </tr>
+        </thead>
 
-          <p>{post.body}</p>
+        <tbody>
+          {posts.map((post) => (
+            <tr key={post.id}>
+              <td>{post.id}</td>
 
-          {post.summary && (
-            <div>
-              <h4>Summary</h4>
-
-              <p>{post.summary}</p>
-            </div>
-          )}
-
-          {post.key_points && (
-            <div>
-              <h4>Key Points</h4>
-
-              <ul>
-                {post.key_points.map(
-                  (point, index) => (
-                    <li key={index}>
-                      {point}
-                    </li>
-                  )
+              <td>
+                {editingId === post.id ? (
+                  <input
+                    value={editTitle}
+                    onChange={(e) =>
+                      setEditTitle(e.target.value)
+                    }
+                  />
+                ) : (
+                  post.title
                 )}
-              </ul>
-            </div>
-          )}
+              </td>
 
-          <button
-            onClick={() =>
-              handleEdit(post)
-            }
-          >
-            Edit
-          </button>
+              <td>
+                {editingId === post.id ? (
+                  <input
+                    value={editBody}
+                    onChange={(e) =>
+                      setEditBody(e.target.value)
+                    }
+                  />
+                ) : (
+                  post.body
+                )}
+              </td>
 
-          {" "}
+              <td>
+                {post.summary || "-"}
+              </td>
 
-          <button
-            onClick={() =>
-              handleDelete(post.id)
-            }
-          >
-            Delete
-          </button>
+              <td>
+                {post.key_points ? (
+                  <ul
+                    style={{
+                      margin: 0,
+                      paddingLeft: "20px",
+                    }}
+                  >
+                    {post.key_points.map(
+                      (point, index) => (
+                        <li key={index}>
+                          {point}
+                        </li>
+                      )
+                    )}
+                  </ul>
+                ) : (
+                  "-"
+                )}
+              </td>
 
-          <button
-            onClick={() =>
-              handleSummarize(post.id)
-            }
-            disabled={loadingId === post.id}
-          >
-            {loadingId === post.id
-              ? "Generating..."
-              : "Summarize"}
-          </button>
-          <hr />
-        </div>
-      ))}
+              <td>
+                {editingId === post.id ? (
+                  <>
+                    <button
+                      onClick={() =>
+                        handleSave(post.id)
+                      }
+                    >
+                      Save
+                    </button>
+
+                    {" "}
+
+                    <button
+                      onClick={handleCancel}
+                    >
+                      Cancel
+                    </button>
+                  </>
+                ) : (
+                  <>
+                    <button
+                      onClick={() =>
+                        handleEdit(post)
+                      }
+                    >
+                      Edit
+                    </button>
+
+                    {" "}
+
+                    <button
+                      onClick={() =>
+                        handleDelete(post.id)
+                      }
+                    >
+                      Delete
+                    </button>
+
+                    {" "}
+
+                    <button
+                      onClick={() =>
+                        handleSummarize(post.id)
+                      }
+                      disabled={
+                        loadingId === post.id
+                      }
+                    >
+                      {loadingId === post.id
+                        ? "Generating..."
+                        : "Summarize"}
+                    </button>
+                  </>
+                )}
+              </td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
     </div>
   );
 }
