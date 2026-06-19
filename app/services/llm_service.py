@@ -1,66 +1,116 @@
+# app/services/llm_service.py
+
+import json
 import time
+
+import requests
 
 from app.services.exceptions import (
     LLMTimeoutError,
     LLMServiceError,
 )
 
+OLLAMA_URL = (
+    "http://localhost:11434/api/generate"
+)
 
-MAX_RETRIES = 3
+MODEL_NAME = "phi3"
+
+MAX_RETRIES = 5
 
 
-def call_mock_llm(text: str):
+def call_local_llm(text: str):
     """
-    Simulates an LLM call.
+    Makes a single call to Ollama.
     """
 
-    # Simulate timeout
-    if "TIMEOUT" in text.upper():
-        time.sleep(5)
+    prompt = f"""
+Summarize the following post.
+
+Return ONLY valid JSON.
+
+Format:
+
+{{
+    "summary": "short summary",
+    "key_points": [
+        "point 1",
+        "point 2",
+        "point 3"
+    ]
+}}
+
+Post:
+{text}
+"""
+
+    try:
+
+        response = requests.post(
+            OLLAMA_URL,
+            json={
+                "model": MODEL_NAME,
+                "prompt": prompt,
+                "stream": False,
+            },
+            timeout=30,
+        )
+
+        response.raise_for_status()
+        result = response.json()
+        # print(result["response"])
+
+        llm_output = result["response"]
+
+        llm_output = llm_output.replace(
+            "```json",
+            ""
+        )
+
+        llm_output = llm_output.replace(
+            "```",
+            ""
+        )
+
+        llm_output = llm_output.strip()
+
+        return json.loads(llm_output)
+
+
+    except requests.Timeout:
 
         raise LLMTimeoutError(
             "LLM request timed out"
         )
 
-    # Simulate API failure
-    if "FAIL" in text.upper():
+    except requests.RequestException:
+        print(f"LLM request failed: {response.text}")
         raise LLMServiceError(
             "LLM service unavailable"
         )
 
-    time.sleep(2)
-
-    words = text.split()
-
-    summary = " ".join(words[:20])
-
-    key_points = [
-        "Post was processed by AI",
-        f"Contains {len(words)} words",
-        "Summary generated successfully"
-    ]
-
-    return {
-        "summary": summary,
-        "key_points": key_points
-    }
+    except json.JSONDecodeError:
+        print(f"Invalid JSON from LLM: {response.text}")
+        raise LLMServiceError(
+            "Invalid JSON returned by LLM"
+        )
 
 
 def generate_summary(text: str):
     """
-    Retry wrapper around LLM call.
+    Retry wrapper with exponential backoff.
     """
 
     for attempt in range(MAX_RETRIES):
 
         try:
 
-            return call_mock_llm(text)
+            return call_local_llm(text)
 
         except LLMTimeoutError:
             raise
 
-        except Exception:
+        except LLMServiceError:
 
             if attempt == MAX_RETRIES - 1:
                 raise
