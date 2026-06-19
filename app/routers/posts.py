@@ -11,6 +11,9 @@ from app.schemas import PostResponse
 from app.schemas import PostUpdate
 from app.dependencies import get_db
 
+from app.services.llm_service import generate_summary
+from app.schemas import SummaryResponse
+
 router = APIRouter(prefix="/posts", tags=["Posts"])
 
 
@@ -118,3 +121,62 @@ async def delete_post(
     db.delete(post)
 
     db.commit()
+
+from app.services.exceptions import (
+    LLMTimeoutError,
+    LLMServiceError,
+)
+
+@router.post(
+    "/{post_id}/summarize",
+    response_model=SummaryResponse
+)
+async def summarize_post(
+    post_id: int,
+    db: Session = Depends(get_db)
+):
+    post = db.query(Post).filter(
+        Post.id == post_id
+    ).first()
+
+    if not post:
+        raise HTTPException(
+            status_code=404,
+            detail="Post not found"
+        )
+
+    try:
+
+        result = generate_summary(
+            post.body
+        )
+
+    except LLMTimeoutError:
+
+        raise HTTPException(
+            status_code=504,
+            detail="LLM request timed out"
+        )
+
+    except LLMServiceError:
+
+        raise HTTPException(
+            status_code=503,
+            detail="LLM service unavailable"
+        )
+
+    except Exception:
+
+        raise HTTPException(
+            status_code=500,
+            detail="Unable to generate summary"
+        )
+
+    post.summary = result["summary"]
+    post.key_points = result["key_points"]
+
+    db.commit()
+
+    db.refresh(post)
+
+    return result

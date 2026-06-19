@@ -1,6 +1,6 @@
 from datetime import datetime
 
-from sqlalchemy import Column
+from sqlalchemy import JSON, Column
 from sqlalchemy import Integer
 from sqlalchemy import String
 from sqlalchemy import Text
@@ -22,3 +22,6 @@ class Post(Base):
         DateTime,
         default=datetime.utcnow
     )
+
+    summary = Column(Text, nullable=True)
+    key_points = Column(JSON, nullable=True)
